@@ -16,9 +16,10 @@ datasource db {
 
 model User {
   id    String @id @default(auto()) @map("_id") @db.ObjectId
+  email String @unique
   username String @unique
-  password String
+  password String @default("")
   google_id String @unique
-  plaid_token String
-  plaid_id String
+  plaid_token String @default("")
+  plaid_id String @default("")
 }
