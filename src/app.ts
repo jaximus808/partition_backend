@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 import finicialRouter from "./routes/financial/plaid"
+import userAuthRouter from "./routes/user/user_auth"
 
 import express, { Request, Response } from "express";
 import bodyParser from 'body-parser';
@@ -22,6 +23,7 @@ app.get("/",(req:Request, res: Response)=>
 })
 
 app.use(finicialRouter)
+app.use("/api",userAuthRouter)
 
 const server = app.listen(APP_PORT, function () {
     console.log('plaid-quickstart server listening on port ' + APP_PORT);

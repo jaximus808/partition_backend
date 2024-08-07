@@ -15,7 +15,7 @@ const validator = async (req:Request, res:Response, next:NextFunction) =>
         next()
     }
     catch (err) {
-        res.send({success:false})
+        res.send({success:false,jwt:"", error:0})
      }
     
 }

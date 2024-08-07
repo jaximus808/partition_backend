@@ -2,7 +2,8 @@
 import { Configuration, PlaidApi, Products, PlaidEnvironments,CountryCode} from 'plaid';
 import util from 'util';
 import { Router, Request, Response } from 'express';
-
+import { PrismaClient } from '@prisma/client'
+const prisma = new PrismaClient()
 import moment from 'moment';
 const router = Router()
 
@@ -16,6 +17,7 @@ const PLAID_REDIRECT_URI = process.env.PLAID_REDIRECT_URI || '';
 
 const PLAID_ANDROID_PACKAGE_NAME = process.env.PLAID_ANDROID_PACKAGE_NAME || '';
 
+import jwt, { JwtPayload } from 'jsonwebtoken'
 const PLAID_PRODUCTS = [Products.Auth,Products.Transactions]
 
 
@@ -48,23 +50,52 @@ const config = new Configuration({
 
 const client = new PlaidApi(config)
 
-router.post('/api/info', (req, res)=>
-{
-    res.json({
-        item_id:ITEM_ID,
-        access_token:ACCESS_TOKEN,
-        products:PLAID_PRODUCTS,
-    })
-})
+// router.post('/api/info', (req, res)=>
+// {
+//     res.json({
+//         item_id:ITEM_ID,
+//         access_token:ACCESS_TOKEN,
+//         products:PLAID_PRODUCTS,
+//     })
+// })
 
-router.post('/api/create_link_token',  (request, response, next) => {
+router.post('/api/create_link_token', async (request, response, next) => {
     console.log("CONECTEF!")
-    Promise.resolve()
+    if(!request.body.token)
+    {
+        response.json({
+            success:false
+        })
+        return
+    }
+    try
+    {
+        
+        const token = request.body.token
+        const secret = process.env.JWT_SECRET  
+        if(!secret)
+        {
+            throw "erro";
+        }
+        const user_email = await jwt.verify(token, secret  ) as JwtPayload
+    
+        const user = await prisma.user.findUnique({
+            where:{
+                email:user_email.email
+            }
+        })
+        if(!user)
+        {
+            response.send({success:false}) 
+            return
+        }
+        const clientId = user.id
+        Promise.resolve()
         .then(async function () {
         const configs = {
             user: {
             // This should correspond to a unique id for the current user.
-            client_user_id: 'user-id',
+            client_user_id: clientId
             },
             client_name: 'Plaid Quickstart',
             products: PLAID_PRODUCTS,
@@ -86,13 +117,24 @@ router.post('/api/create_link_token',  (request, response, next) => {
         //   }
         //   configs.statements = statementConfig;
         // }
+        console.log("HEE")
         const createTokenResponse = await client.linkTokenCreate(configs);
         prettyPrintResponse(createTokenResponse);
         response.json(createTokenResponse.data);
         })
-        .catch(next);
+        .catch((e)=>
+        {
+            console.log(e)
+            response.send({success:false}) 
+        });
+
     }
-);
+    catch (e)
+    {
+        response.send({success:false}) 
+    }
+
+});
     
 
 export default router
