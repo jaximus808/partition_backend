@@ -2,8 +2,9 @@
 import { Configuration, PlaidApi, Products, PlaidEnvironments,CountryCode, TransactionsSyncRequest, Transaction} from 'plaid';
 import util from 'util';
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient,Prisma } from '@prisma/client'
 const prisma = new PrismaClient()
+// import {Prisma} from '@prisma/client'
 import plaid_setup from '../route_schemas/plaid_setup_check'
 
 import plaid_fin from '../route_schemas/plaid_fin_check'
@@ -20,6 +21,7 @@ const PLAID_REDIRECT_URI = process.env.PLAID_REDIRECT_URI || '';
 const PLAID_ANDROID_PACKAGE_NAME = process.env.PLAID_ANDROID_PACKAGE_NAME || '';
 
 import jwt, { JwtPayload } from 'jsonwebtoken'
+//import { JsonArray } from '@prisma/client/runtime/library';
 const PLAID_PRODUCTS = [Products.Auth,Products.Transactions]
 
 
@@ -209,7 +211,6 @@ router.post("/get_transactions",plaid_fin, async (req, res) =>
     }
     try 
     {
-        console.log("MEOW")
         const user_email =  jwt.verify(token, jwt_secret  ) as JwtPayload
         console.log(user_email)
         const user = await prisma.user.findUnique({
@@ -240,7 +241,6 @@ router.post("/get_transactions",plaid_fin, async (req, res) =>
             }
         }
         
-        console.log("anoo3")
         if(user.plaid_cursor.length>0)
         {
             syncObject.cursor = user.plaid_cursor
@@ -248,13 +248,10 @@ router.post("/get_transactions",plaid_fin, async (req, res) =>
 
         const transactions = await plaidClient.transactionsSync(syncObject)
 
-        console.log("anoo4")
-        console.log("MEOW!!")
         if(!transactions)
         {
             throw "something went wrong"
         }
-        console.log(transactions.data.added)
 
 
 
@@ -274,10 +271,12 @@ router.post("/get_transactions",plaid_fin, async (req, res) =>
                 }
                 parsed_added_tran.push(tran)
             }
-    
+            // console.log(parsed_added_tran)
             const new_uncat_tran = user.uncategorized_transaction_30days as Array<any>
-            new_uncat_tran.push(transactions.data.added)
-            console.log(new_uncat_tran)
+            new_uncat_tran.push(...parsed_added_tran)
+            
+            console.log("parsed added")
+            console.log(parsed_added_tran.length)
             
     
             await prisma.user.update({
@@ -285,24 +284,23 @@ router.post("/get_transactions",plaid_fin, async (req, res) =>
                     email:user_email.email
                 },
                 data:{
-                    uncategorized_transaction_30days: JSON.stringify(new_uncat_tran),
+                    uncategorized_transaction_30days: new_uncat_tran,
                     plaid_cursor: transactions.data.next_cursor,
                     total_income_30days: user.total_income_30days+new_income
                     
                 }
             })
             
-            console.log("sent")
             res.send({
                 success:true, 
     
                 uncat_transactions: new_uncat_tran, 
     
-                want_transaction: user.want_transaction_30days, 
+                want_transactions: user.want_transaction_30days, 
     
-                need_transaction: user.need_transaction_30days,
+                need_transactions: user.need_transaction_30days,
     
-                invest_transaction: user.investment_transaction_30days,
+                invest_transactions: user.investment_transaction_30days,
 
                 total_income: user.total_income_30days+new_income
             })
@@ -311,16 +309,17 @@ router.post("/get_transactions",plaid_fin, async (req, res) =>
         {
           
             console.log("sent")
+            // console.log(JSON.parseuser.uncategorized_transaction_30days?.toString())
             res.send({
                 success:true, 
     
-                uncat_transactions:[], 
+                uncat_transactions: user.uncategorized_transaction_30days, 
     
-                want_transaction: user.want_transaction_30days, 
+                want_transactions: user.want_transaction_30days, 
     
-                need_transaction: user.need_transaction_30days,
+                need_transactions: user.need_transaction_30days,
     
-                invest_transaction: user.investment_transaction_30days,
+                invest_transactions: user.investment_transaction_30days,
 
                 total_income: user.total_income_30days
             })
