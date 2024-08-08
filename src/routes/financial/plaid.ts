@@ -59,7 +59,7 @@ const client = new PlaidApi(config)
 //     })
 // })
 
-router.post('/api/create_link_token', async (request, response, next) => {
+router.post('/create_link_token', async (request, response, next) => {
     console.log("CONECTEF!")
     if(!request.body.token)
     {
@@ -135,6 +135,10 @@ router.post('/api/create_link_token', async (request, response, next) => {
     }
 
 });
+
+router.post("/get_transactions", (req, res) =>
+{
     
+})
 
 export default router

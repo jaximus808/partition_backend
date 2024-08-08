@@ -22,7 +22,7 @@ app.get("/",(req:Request, res: Response)=>
   res.send("hi")
 })
 
-app.use(finicialRouter)
+app.use("/api/fin",finicialRouter)
 app.use("/api",userAuthRouter)
 
 const server = app.listen(APP_PORT, function () {

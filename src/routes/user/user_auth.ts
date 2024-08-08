@@ -162,18 +162,19 @@ router.post("/check_token", token_check,async (req, res)=>
 
 router.post("/setup_plaid", plaid_setup, async(req, res)=>
 {
-
-    const token = req.body.token
+    console.log("got it")
+    const token = req.body.user_jwt
     const access_token = req.body.access_token
+    const jwt_secret = process.env.JWT_SECRET  
     const secret = process.env.SERVER_PLAID_SECRET  
-    if(!secret)
+    if(!secret || !jwt_secret)
     {
-        res.send({success:false, error:0})
+        res.send({success:false, error:4})
         return
     }
     try 
     {
-        const user_email = await jwt.verify(token, secret  ) as JwtPayload
+        const user_email = await jwt.verify(token, jwt_secret  ) as JwtPayload
     
         const user = await prisma.user.findUnique({
             where:{
@@ -192,7 +193,7 @@ router.post("/setup_plaid", plaid_setup, async(req, res)=>
         }
         
         const encrypt_token = jwt.sign(access_token, secret)
-
+        
         await prisma.user.update({
             where:{
                 email:user_email.email
@@ -201,14 +202,15 @@ router.post("/setup_plaid", plaid_setup, async(req, res)=>
                 plaid_token:encrypt_token
             }
         })
-
+        console.log("les goo!!")
         res.send({success:true})
 
     }
     catch (e)
     {
+        console.log(e)
 
-        res.send({success:false,error:0})
+        res.send({success:false,error:5})
     }
     
 })
