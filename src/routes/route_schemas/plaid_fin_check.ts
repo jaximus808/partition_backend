@@ -3,7 +3,6 @@ import { Router, Request, Response, NextFunction } from 'express';
 import Joi from "joi";
 
 const schema = Joi.object({
-    public_token: Joi.string().required(),
     user_jwt: Joi.string().required(),
 })
 

@@ -21,10 +21,10 @@ model User {
   password String @default("")
   google_id String @unique
   plaid_token String @default("")
-  total_transcations_30days Json 
-  uncategorized_transcation_30days Json
-  total_income_30days Float 
-  need_transcations_30days Json
-  want_transcations_30days Json
-  investment_transcations_30days Json
+  uncategorized_transaction_30days Json @default("[]")
+  total_income_30days Float @default(0)
+  need_transaction_30days Json @default("[]")
+  want_transaction_30days Json @default("[]")
+  investment_transaction_30days Json @default("[]")
+  plaid_cursor String @default("")
 }

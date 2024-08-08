@@ -6,8 +6,6 @@ import { Router } from 'express'
 
 import google_signup from '../route_schemas/google_signup'
 import token_check from '../route_schemas/token_check'
-import plaid_setup from '../route_schemas/plaid_setup_check'
-
 const router = Router()
 
 
@@ -104,7 +102,7 @@ router.post("/signin_user_google", google_signup, async (req, res)=>
                 return
             }
             let loginStatus = 2
-            if(check_email.plaid_id.length == 0)
+            if(check_email.plaid_token.length == 0)
             {
                 loginStatus = 1
             }
@@ -145,7 +143,7 @@ router.post("/check_token", token_check,async (req, res)=>
         else 
         {
             let loginStatus = 2
-            if(user.plaid_id.length == 0)
+            if(user.plaid_token.length == 0)
             {
                 loginStatus = 1
             }
@@ -160,59 +158,5 @@ router.post("/check_token", token_check,async (req, res)=>
     }
 })
 
-router.post("/setup_plaid", plaid_setup, async(req, res)=>
-{
-    console.log("got it")
-    const token = req.body.user_jwt
-    const access_token = req.body.access_token
-    const jwt_secret = process.env.JWT_SECRET  
-    const secret = process.env.SERVER_PLAID_SECRET  
-    if(!secret || !jwt_secret)
-    {
-        res.send({success:false, error:4})
-        return
-    }
-    try 
-    {
-        const user_email = await jwt.verify(token, jwt_secret  ) as JwtPayload
-    
-        const user = await prisma.user.findUnique({
-            where:{
-                email:user_email.email
-            }
-        })
-        if(!user)
-        {
-            res.send({success:false, error: 1}) 
-            return
-        }
-        if(user.plaid_token != "")
-        {
-            res.send({success:false, error: 2})
-            return
-        }
-        
-        const encrypt_token = jwt.sign(access_token, secret)
-        
-        await prisma.user.update({
-            where:{
-                email:user_email.email
-            },
-            data:{
-                plaid_token:encrypt_token
-            }
-        })
-        console.log("les goo!!")
-        res.send({success:true})
-
-    }
-    catch (e)
-    {
-        console.log(e)
-
-        res.send({success:false,error:5})
-    }
-    
-})
 
 export default router

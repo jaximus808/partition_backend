@@ -1,10 +1,12 @@
 
-import { Configuration, PlaidApi, Products, PlaidEnvironments,CountryCode} from 'plaid';
+import { Configuration, PlaidApi, Products, PlaidEnvironments,CountryCode, TransactionsSyncRequest, Transaction} from 'plaid';
 import util from 'util';
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
-import moment from 'moment';
+import plaid_setup from '../route_schemas/plaid_setup_check'
+
+import plaid_fin from '../route_schemas/plaid_fin_check'
 const router = Router()
 
 const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID;
@@ -48,7 +50,7 @@ const config = new Configuration({
     }
 })
 
-const client = new PlaidApi(config)
+const plaidClient = new PlaidApi(config)
 
 // router.post('/api/info', (req, res)=>
 // {
@@ -118,7 +120,7 @@ router.post('/create_link_token', async (request, response, next) => {
         //   configs.statements = statementConfig;
         // }
         console.log("HEE")
-        const createTokenResponse = await client.linkTokenCreate(configs);
+        const createTokenResponse = await plaidClient.linkTokenCreate(configs);
         prettyPrintResponse(createTokenResponse);
         response.json(createTokenResponse.data);
         })
@@ -136,9 +138,203 @@ router.post('/create_link_token', async (request, response, next) => {
 
 });
 
-router.post("/get_transactions", (req, res) =>
-{
+
+router.post("/setup_plaid", plaid_setup, async(req, res)=>
+    {
+        console.log("got it")
+        const token = req.body.user_jwt
+        const publicToken = req.body.public_token
+        const jwt_secret = process.env.JWT_SECRET  
+        const secret = process.env.SERVER_PLAID_SECRET  
+        if(!secret || !jwt_secret)
+        {
+            res.send({success:false, error:4})
+            return
+        }
+        try 
+        {
+            const user_email =  jwt.verify(token, jwt_secret  ) as JwtPayload
+        
+            const user = await prisma.user.findUnique({
+                where:{
+                    email:user_email.email
+                }
+            })
+            if(!user)
+            {
+                res.send({success:false, error: 1}) 
+                return
+            }
+            if(user.plaid_token != "")
+            {
+                res.send({success:false, error: 2})
+                return
+            }
+            const access_token = await plaidClient.itemPublicTokenExchange({
+                public_token: publicToken,
+              });
+            const encrypt_token = jwt.sign(access_token.data.access_token, secret)
+           
+            await prisma.user.update({
+                where:{
+                    email:user_email.email
+                },
+                data:{
+                    plaid_token:encrypt_token,
+                    // uncategorized_transcation_30days: JSON.stringify(transactions.data.added)
+                }
+            })
+
+            res.send({success:true})
     
+        }
+        catch (e)
+        {
+            console.log(e)
+    
+            res.send({success:false,error:5})
+        }
+        
+    })
+
+router.post("/get_transactions",plaid_fin, async (req, res) =>
+{
+    const token = req.body.user_jwt
+    const jwt_secret = process.env.JWT_SECRET  
+    const secret = process.env.SERVER_PLAID_SECRET  
+    if(!secret || !jwt_secret)
+    {
+        res.send({success:false, error:4})
+        return
+    }
+    try 
+    {
+        console.log("MEOW")
+        const user_email =  jwt.verify(token, jwt_secret  ) as JwtPayload
+        console.log(user_email)
+        const user = await prisma.user.findUnique({
+            where:{
+                email:user_email.email
+            }
+        })
+        if(!user)
+        {
+            res.send({success:false, error: 1}) 
+            return
+        }
+
+        if(user.plaid_token.length == 0)
+        {
+            res.send({success:false, error: 2})
+            return
+        }
+        
+        const access_token =  jwt.verify(user.plaid_token, secret) as string
+       
+        const syncObject:TransactionsSyncRequest = 
+        {
+            access_token: access_token,
+            client_id: user.id,
+            options:{
+                days_requested:30,
+            }
+        }
+        
+        console.log("anoo3")
+        if(user.plaid_cursor.length>0)
+        {
+            syncObject.cursor = user.plaid_cursor
+        }
+
+        const transactions = await plaidClient.transactionsSync(syncObject)
+
+        console.log("anoo4")
+        console.log("MEOW!!")
+        if(!transactions)
+        {
+            throw "something went wrong"
+        }
+        console.log(transactions.data.added)
+
+
+
+        if(transactions.data.added.length > 0)
+        {
+            let new_income = 0
+
+            const parsed_added_tran = []
+    
+            for(let i = 0; i < transactions.data.added.length; i++)
+            {
+                const tran = transactions.data.added[i]
+                if(tran.amount<0)
+                {
+                    new_income -= tran.amount 
+                    continue
+                }
+                parsed_added_tran.push(tran)
+            }
+    
+            const new_uncat_tran = user.uncategorized_transaction_30days as Array<any>
+            new_uncat_tran.push(transactions.data.added)
+            console.log(new_uncat_tran)
+            
+    
+            await prisma.user.update({
+                where:{
+                    email:user_email.email
+                },
+                data:{
+                    uncategorized_transaction_30days: JSON.stringify(new_uncat_tran),
+                    plaid_cursor: transactions.data.next_cursor,
+                    total_income_30days: user.total_income_30days+new_income
+                    
+                }
+            })
+            
+            console.log("sent")
+            res.send({
+                success:true, 
+    
+                uncat_transactions: new_uncat_tran, 
+    
+                want_transaction: user.want_transaction_30days, 
+    
+                need_transaction: user.need_transaction_30days,
+    
+                invest_transaction: user.investment_transaction_30days,
+
+                total_income: user.total_income_30days+new_income
+            })
+        }
+        else
+        {
+          
+            console.log("sent")
+            res.send({
+                success:true, 
+    
+                uncat_transactions:[], 
+    
+                want_transaction: user.want_transaction_30days, 
+    
+                need_transaction: user.need_transaction_30days,
+    
+                invest_transaction: user.investment_transaction_30days,
+
+                total_income: user.total_income_30days
+            })
+        }
+
+        
+
+    }
+    catch (e)
+    {
+        console.log(e)
+
+        res.send({success:false,error:5})
+    }
 })
 
 export default router
