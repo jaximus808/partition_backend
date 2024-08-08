@@ -17,12 +17,12 @@ datasource db {
 model User {
   id    String @id @default(auto()) @map("_id") @db.ObjectId
   email String @unique
-  username String @unique
+  username String 
   password String @default("")
   google_id String @unique
   plaid_token String @default("")
   uncategorized_transaction_30days Json @default("[]")
-  total_income_30days Float @default(0)
+  income_transaction_30days Json @default("[]")
   need_transaction_30days Json @default("[]")
   want_transaction_30days Json @default("[]")
   investment_transaction_30days Json @default("[]")

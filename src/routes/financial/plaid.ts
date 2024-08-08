@@ -8,6 +8,7 @@ const prisma = new PrismaClient()
 import plaid_setup from '../route_schemas/plaid_setup_check'
 
 import plaid_fin from '../route_schemas/plaid_fin_check'
+import plaid_tran_update from '../route_schemas/plaid_tran_update'
 const router = Router()
 
 const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID;
@@ -253,32 +254,30 @@ router.post("/get_transactions",plaid_fin, async (req, res) =>
             throw "something went wrong"
         }
 
-
-
         if(transactions.data.added.length > 0)
         {
-            let new_income = 0
-
             const parsed_added_tran = []
+            const parsed_added_income = []
     
             for(let i = 0; i < transactions.data.added.length; i++)
             {
                 const tran = transactions.data.added[i]
                 if(tran.amount<0)
                 {
-                    new_income -= tran.amount 
+                    parsed_added_income.push(tran)
                     continue
                 }
                 parsed_added_tran.push(tran)
             }
+            parsed_added_tran.reverse()
+            parsed_added_income.reverse()
             // console.log(parsed_added_tran)
             const new_uncat_tran = user.uncategorized_transaction_30days as Array<any>
+            const new_income_tran = user.income_transaction_30days as Array<any>
             new_uncat_tran.push(...parsed_added_tran)
+            new_income_tran.push(...parsed_added_income)
             
-            console.log("parsed added")
-            console.log(parsed_added_tran.length)
             
-    
             await prisma.user.update({
                 where:{
                     email:user_email.email
@@ -286,7 +285,7 @@ router.post("/get_transactions",plaid_fin, async (req, res) =>
                 data:{
                     uncategorized_transaction_30days: new_uncat_tran,
                     plaid_cursor: transactions.data.next_cursor,
-                    total_income_30days: user.total_income_30days+new_income
+                    income_transaction_30days: new_income_tran
                     
                 }
             })
@@ -302,7 +301,9 @@ router.post("/get_transactions",plaid_fin, async (req, res) =>
     
                 invest_transactions: user.investment_transaction_30days,
 
-                total_income: user.total_income_30days+new_income
+                income_transactions: new_income_tran,
+                
+                plaid_cursor:transactions.data.next_cursor,
             })
         }
         else
@@ -321,14 +322,107 @@ router.post("/get_transactions",plaid_fin, async (req, res) =>
     
                 invest_transactions: user.investment_transaction_30days,
 
-                total_income: user.total_income_30days
+                income_transactions: user.income_transaction_30days,
+                plaid_cursor: user.plaid_cursor
             })
         }
-
-        
-
     }
     catch (e)
+    {
+        console.log(e)
+        
+        res.send({success:false,error:5})
+    }
+})
+
+
+router.post("/set_transaction", plaid_tran_update, async (req, res) =>{
+    const token = req.body.user_jwt
+    const jwt_secret = process.env.JWT_SECRET  
+    const plaid_cursor = req.body.plaid_cursor
+    const category = req.body.category
+    if( !jwt_secret)
+    {
+        res.send({success:false, error:4})
+        return
+    }
+    try 
+    {
+        const user_email =  jwt.verify(token, jwt_secret  ) as JwtPayload
+        
+        const user = await prisma.user.findUnique({
+            where:{
+                email:user_email.email
+            }
+        })
+        if(!user)
+        {
+            res.send({success:false, error: 1}) 
+            return
+        }
+        if(user.plaid_cursor != plaid_cursor)
+        {
+            //this mean the user was updated through a webhook
+            
+            res.send({
+                success:false, 
+                
+                error: -2, 
+                
+                new_uncat_trans:user.uncategorized_transaction_30days, 
+                
+                new_plaid_cursor: user.plaid_cursor 
+            }) 
+            return
+        }
+        const uncat_array = user.uncategorized_transaction_30days as Array<any>;
+        const up_trans = uncat_array.shift();
+        switch(category)
+        {
+            case "want":
+                const want_array = user.want_transaction_30days as Array<any>;
+                want_array.unshift(up_trans);
+
+                await prisma.user.update({
+                    where:{
+                        email:user_email.email
+                    },
+                    data:{
+                        uncategorized_transaction_30days:uncat_array,
+                        want_transaction_30days:want_array
+                    }
+                })
+                break;
+            case "need":
+                const need_array = user.need_transaction_30days as Array<any>;
+                need_array.unshift(up_trans);
+                await prisma.user.update({
+                    where:{
+                        email:user_email.email
+                    },
+                    data:{
+                        uncategorized_transaction_30days:uncat_array,
+                        want_transaction_30days:need_array
+                    }
+                })
+                break;
+            case "invest":
+                const invest_array = user.investment_transaction_30days as Array<any>;
+                invest_array.unshift(up_trans);
+                await prisma.user.update({
+                    where:{
+                        email:user_email.email
+                    },
+                    data:{
+                        uncategorized_transaction_30days:uncat_array,
+                        want_transaction_30days:invest_array
+                    }
+                })
+                break;
+        }
+        res.send({success:true})
+    }
+    catch(e)
     {
         console.log(e)
 

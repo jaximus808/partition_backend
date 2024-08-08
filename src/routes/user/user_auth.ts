@@ -31,7 +31,6 @@ router.post("/register_user_google", google_signup, async (req, res)=>
             res.send({success:false, jwt: "", error:1})
             return
         }
-
         const user = await prisma.user.create({
             data:{
                 email:userOb.email,
@@ -52,6 +51,8 @@ router.post("/register_user_google", google_signup, async (req, res)=>
     }
     catch(e)
     {
+
+        console.log(e)
         res.send({success:false, jwt: "", error:0})
     }
 })
@@ -76,15 +77,16 @@ router.post("/signin_user_google", google_signup, async (req, res)=>
             {
 
                 const hashed_google_id = await bcrpyt.hash(userOb.google_id, 10)
+                console.log(userOb.displayName)
                 const user = await prisma.user.create({
                     data:{
                         email:userOb.email,
-                        username:userOb.displayName,
+                        username: userOb.displayName,
                         google_id: hashed_google_id,
                         
                     }
                 })   
-                
+                 
             
                 if(!secret)
                 {

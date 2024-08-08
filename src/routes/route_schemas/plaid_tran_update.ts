@@ -1,0 +1,24 @@
+
+import { Router, Request, Response, NextFunction } from 'express';
+import Joi from "joi";
+
+const schema = Joi.object({
+    user_jwt: Joi.string().required(),
+    category: Joi.string().valid("need", "want", "invest").required(),
+    plaid_cursor: Joi.string().required(),
+})
+
+const validator = async (req:Request, res:Response, next:NextFunction) =>
+{
+    try {
+        console.log(req.body)
+        const value = await schema.validateAsync(req.body);
+        next()
+    }
+    catch (err) {
+        res.send({success:false, error:-1})
+     }
+    
+}
+
+export default validator
