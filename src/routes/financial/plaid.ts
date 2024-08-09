@@ -380,9 +380,11 @@ router.post("/set_transaction", plaid_tran_update, async (req, res) =>{
         switch(category)
         {
             case "want":
+
+            console.log("WANT")
                 const want_array = user.want_transaction_30days as Array<any>;
                 want_array.unshift(up_trans);
-
+                //console.log(want_array)
                 await prisma.user.update({
                     where:{
                         email:user_email.email
@@ -394,19 +396,23 @@ router.post("/set_transaction", plaid_tran_update, async (req, res) =>{
                 })
                 break;
             case "need":
+
+            console.log("NEED")
                 const need_array = user.need_transaction_30days as Array<any>;
                 need_array.unshift(up_trans);
+                //console.log(need_array)
                 await prisma.user.update({
                     where:{
                         email:user_email.email
                     },
                     data:{
                         uncategorized_transaction_30days:uncat_array,
-                        want_transaction_30days:need_array
+                         need_transaction_30days:need_array
                     }
                 })
                 break;
             case "invest":
+                console.log("INVEST")
                 const invest_array = user.investment_transaction_30days as Array<any>;
                 invest_array.unshift(up_trans);
                 await prisma.user.update({
@@ -415,7 +421,7 @@ router.post("/set_transaction", plaid_tran_update, async (req, res) =>{
                     },
                     data:{
                         uncategorized_transaction_30days:uncat_array,
-                        want_transaction_30days:invest_array
+                        investment_transaction_30days:invest_array
                     }
                 })
                 break;
